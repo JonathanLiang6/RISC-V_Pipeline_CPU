@@ -1,8 +1,0 @@
-{
-    "folders": [
-        {
-            "path": "." // 表示工作区根目录就是当前文件夹
-        }
-    ],
-    "settings": {} // 工作区设置将从 .vscode/settings.json 中读取
-}

@@ -1,9 +1,0 @@
-src/xgriscv_defines.v
-src/xgriscv_parts.v
-src/xgriscv_alu.v
-src/xgriscv_regfile.v
-src/xgriscv_mem.v
-src/xgriscv_controller.v
-src/xgriscv_datapath.v
-src/xgriscv_pipelined.v
-src/xgriscv_tb.v

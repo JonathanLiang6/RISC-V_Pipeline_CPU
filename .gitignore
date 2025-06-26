@@ -1,0 +1,54 @@
+# FPGA项目 .gitignore 文件
+# 适用于Vivado开发环境的RISC-V流水线CPU项目
+
+# ========================================
+# Vivado项目文件
+# ========================================
+
+# Vivado项目缓存目录
+PipelineCPU/PipelineCPU.cache/
+PipelineCPU/.Xil/
+
+# Vivado运行目录（包含综合、实现、仿真结果）
+PipelineCPU/PipelineCPU.runs/
+
+# Vivado仿真目录
+PipelineCPU/PipelineCPU.sim/
+
+# Vivado硬件平台目录
+PipelineCPU/PipelineCPU.hw/
+
+# Vivado IP用户文件目录
+PipelineCPU/PipelineCPU.ip_user_files/
+
+# Vivado日志文件
+PipelineCPU/vivado.log
+PipelineCPU/vivado.jou
+PipelineCPU/vivado_*.backup.log
+PipelineCPU/vivado_*.backup.jou
+
+# ========================================
+# 操作系统生成的文件
+# ========================================
+
+# macOS系统文件
+.DS_Store
+
+# ========================================
+# 编辑器配置文件
+# ========================================
+
+# VSCode配置文件
+.vscode/settings.json
+
+# ========================================
+# 项目特定的忽略文件
+# ========================================
+
+# 如果不想版本控制某些特定的数据文件
+# programs/*.dat
+# coe/*.coe
+# src/*.dat
+
+# 如果不想版本控制工作区文件
+# xgriscv.code.workspace 

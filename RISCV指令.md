@@ -2,7 +2,7 @@
 RISC-V指令集采用简洁的设计理念，具有多种指令格式，不同格式的指令在字段组成和功能上各有特点，以下是对其基本指令集的详细介绍：
 
 ### RISC-V指令格式
-RISC-V指令根据操作数和功能的不同，主要分为以下几种格式，各格式的字段组成如下：
+RISC-V指令根据操作数和功能的不同，主要分为以下几种格式,各格式的字段组成如下：
 - **R-type（寄存器型）**
     - 字段构成：funct7（7位）、rs2（5位）、rs1（5位）、funct3（3位）、rd（5位）、opcode（7位）。
     - 用途：通常用于算术逻辑运算等需要两个寄存器操作数和一个结果寄存器的指令。
@@ -47,11 +47,11 @@ RISC-V指令根据操作数和功能的不同，主要分为以下几种格式�
 |I-type|SLTI|rd, rs1, imm|将rs1的值与符号扩展后的12位立即数进行有符号比较，若rs1小于立即数，rd置1，否则置0|
 |I-type|SLTIU|rd, rs1, imm|将rs1的值与符号扩展后的12位立即数进行无符号比较，若rs1小于立即数，rd置1，否则置0|
 |I-type|XORI|rd, rs1, imm|将rs1的值与符号扩展后的12位立即数进行异或运算，结果存入rd|
-|I-type|ORI|rd, rs1, imm|将rs1的值与符号扩展后的12位立即数进行或运算，结果存入rd|
 |I-type|ANDI|rd, rs1, imm|将rs1的值与符号扩展后的12位立即数进行与运算，结果存入rd|
 |I-type|SLLI|rd, rs1, shamt|将rs1的值左移shamt位（shamt为5位立即数），低位补0，结果存入rd|
 |I-type|SRLI|rd, rs1, shamt|将rs1的值逻辑右移shamt位（shamt为5位立即数），高位补0，结果存入rd|
 |I-type|SRAI|rd, rs1, shamt|将rs1的值算术右移shamt位（shamt为5位立即数），高位补符号位，结果存入rd|
+|I-type|SRAI| rd, rs1, shamt| 将rs1的值算术右移shamt位（shamt为5位立即数），高位补符号位，结果存入rd|
 |R-type|ADD|rd, rs1, rs2|将rs1和rs2的值相加，结果存入rd|
 |R-type|SUB|rd, rs1, rs2|将rs1的值减去rs2的值，结果存入rd|
 |R-type|SLL|rd, rs1, rs2|将rs1的值左移rs2的低5位所指定的位数，低位补0，结果存入rd|
@@ -62,6 +62,3 @@ RISC-V指令根据操作数和功能的不同，主要分为以下几种格式�
 |R-type|SRA|rd, rs1, rs2|将rs1的值算术右移rs2的低5位所指定的位数，高位补符号位，结果存入rd|
 |R-type|OR|rd, rs1, rs2|对rs1和rs2的值进行或运算，结果存入rd|
 |R-type|AND|rd, rs1, rs2|对rs1和rs2的值进行与运算，结果存入rd|
-|特殊指令|FENCE|fm, pred, succ|内存屏障指令，用于保证内存操作的顺序|
-|特殊指令|ECALL|无|环境调用指令，用于用户态向操作系统内核请求服务|
-|特殊指令|EBREAK|无|调试中断指令，用于调试时暂停程序执行|

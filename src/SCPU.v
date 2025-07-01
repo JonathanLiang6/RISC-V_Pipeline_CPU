@@ -1,144 +1,109 @@
 `include "ctrl_encode_def.v"
-
-// RISC-V 单周期CPU主模块 - 支持完整的RV32I指令集
 module SCPU(
     input      clk,            // 时钟信号
     input      reset,          // 复位信号
     input [31:0]  inst_in,     // 指令输入
-    input [31:0]  Data_in,     // 数据内存输入
+    input [31:0]  Data_in,     // 来自数据内存的数据
    
-    output    mem_w,          // 内存写使能
-    output [31:0] PC_out,     // PC地址输出
-    output [31:0] Addr_out,   // ALU输出地址
-    output [31:0] Data_out,   // 数据内存输出
-    output [2:0]  DMType_out, // 内存访问类型输出
+    output    mem_w,          // 输出: 内存写信号
+    output [31:0] PC_out,     // PC地址
+      // memory write
+    output [31:0] Addr_out,   // ALU输出
+    output [31:0] Data_out,   // 输出到数据内存的数据
+    output [2:0] DMType_out,  // 输出: 数据内存访问类型控制信号
 
-    input  [4:0] reg_sel,     // 寄存器选择（调试用）
-    output [31:0] reg_data    // 选中寄存器数据（调试用）
+    input  [4:0] reg_sel,    // 寄存器选择 (用于调试)
+    output [31:0] reg_data  // 选中的寄存器数据 (用于调试)
 );
-    // ==================== 控制信号 ====================
-    wire        RegWrite;     // 寄存器写使能
-    wire [5:0]  EXTOp;        // 立即数扩展控制
-    wire [4:0]  ALUOp;        // ALU操作码
-    wire [2:0]  NPCOp;        // 下一条PC操作
-    wire [1:0]  WDSel;        // 写数据选择
-    wire [1:0]  GPRSel;       // 寄存器选择
-    wire        ALUSrc;       // ALU源操作数选择
-    wire        Zero;         // ALU零标志位
-    wire [2:0]  DMType;       // 内存访问类型
+    wire        RegWrite;    // 寄存器写控制信号
+    wire [5:0]       EXTOp;       // 符号扩展控制信号
+    wire [4:0]  ALUOp;       // ALU操作
+    wire [2:0]  NPCOp;       // 下一条PC操作
 
-    // ==================== 数据通路信号 ====================
-    wire [31:0] NPC;          // 下一条PC
-    wire [4:0]  rs1;          // 源寄存器1
-    wire [4:0]  rs2;          // 源寄存器2
-    wire [4:0]  rd;           // 目标寄存器
-    wire [6:0]  Op;           // 操作码
-    wire [6:0]  Funct7;       // funct7字段
-    wire [2:0]  Funct3;       // funct3字段
-    wire [11:0] Imm12;        // 12位立即数
-    wire [31:0] Imm32;        // 32位立即数
-    wire [19:0] IMM;          // 20位立即数
-    reg  [4:0]  A3;           // 写寄存器地址
-    reg [31:0]  WD;           // 寄存器写数据
-    wire [31:0] RD1, RD2;     // 寄存器读数据
-    wire [31:0] B;            // ALU操作数B
-    wire [31:0] aluout;       // ALU输出
-    wire [31:0] debug_RD1;    // 调试用寄存器读数据
+    wire [1:0]  WDSel;       // (寄存器)写数据选择
+    wire [1:0]  GPRSel;      // 通用寄存器选择
+   
+    wire        ALUSrc;      // ALU源操作数A
+    wire        Zero;        // ALU输出零标志
+
+    wire [31:0] NPC;         // 下一条PC
+
+    wire [4:0]  rs1;          // rs
+    wire [4:0]  rs2;          // rt
+    wire [4:0]  rd;          // rd
+    wire [6:0]  Op;          // opcode
+    wire [6:0]  Funct7;       // funct7
+    wire [2:0]  Funct3;       // funct3
+    wire [11:0] Imm12;       // 12位立即数
+    wire [31:0] Imm32;       // 32位立即数
+    wire [19:0] IMM;         // 20位立即数 (地址)
+    wire [4:0]  A3;          // 寄存器写地址
+    reg [31:0] WD;          // 寄存器写数据
+    wire [31:0] RD1,RD2;         // 由rs指定的寄存器数据
+    wire [31:0] B;           // ALU操作数B
 	
-    // ==================== 立即数字段提取 ====================
-    wire [4:0]  iimm_shamt;   // I型指令移位字段
-    wire [11:0] iimm, simm, bimm; // 各种指令格式的立即数
-    wire [19:0] uimm, jimm;   // U型和J型指令立即数
-    wire [31:0] immout;       // 扩展后的立即数
-
-    // ==================== 信号连接 ====================
-    assign Addr_out = aluout;     // ALU输出作为地址
-    assign DMType_out = DMType;   // 内存访问类型输出
-    assign B = (ALUSrc) ? immout : RD2;  // ALU源操作数选择
-    assign Data_out = RD2;        // 存储指令的数据输出
+	wire [4:0] iimm_shamt;
+	wire [11:0] iimm,simm,bimm;
+	wire [19:0] uimm,jimm;
+	wire [31:0] immout;
+wire[31:0] aluout;
+assign Addr_out=aluout;
+	assign B = (ALUSrc) ? immout : RD2;
+	assign Data_out = RD2;
 	
-    // ==================== 指令字段提取 ====================
-    assign iimm_shamt = inst_in[24:20];  // 移位指令的shamt字段
-    assign iimm = inst_in[31:20];        // I型指令立即数
-    assign simm = {inst_in[31:25], inst_in[11:7]}; // S型指令立即数
-    assign bimm = {inst_in[31], inst_in[7], inst_in[30:25], inst_in[11:8]}; // B型指令立即数
-    assign uimm = inst_in[31:12];        // U型指令立即数
-    assign jimm = {inst_in[31], inst_in[19:12], inst_in[20], inst_in[30:21]}; // J型指令立即数
+	assign iimm_shamt=inst_in[24:20];
+	assign iimm=inst_in[31:20];
+	assign simm={inst_in[31:25],inst_in[11:7]};
+	assign bimm={inst_in[31],inst_in[7],inst_in[30:25],inst_in[11:8]};
+	assign uimm=inst_in[31:12];
+	assign jimm={inst_in[31],inst_in[19:12],inst_in[20],inst_in[30:21]};
    
-    assign Op = inst_in[6:0];            // 操作码
-    assign Funct7 = inst_in[31:25];      // funct7字段
-    assign Funct3 = inst_in[14:12];      // funct3字段
-    assign rs1 = inst_in[19:15];         // 源寄存器1
-    assign rs2 = inst_in[24:20];         // 源寄存器2
-    assign rd = inst_in[11:7];           // 目标寄存器
-    assign Imm12 = inst_in[31:20];       // 12位立即数
-    assign IMM = inst_in[31:12];         // 20位立即数
+    assign Op = inst_in[6:0];  // instruction
+    assign Funct7 = inst_in[31:25]; // funct7
+    assign Funct3 = inst_in[14:12]; // funct3
+    assign rs1 = inst_in[19:15];  // rs1
+    assign rs2 = inst_in[24:20];  // rs2
+    assign rd = inst_in[11:7];  // rd
+    assign Imm12 = inst_in[31:20];// 12-bit immediate
+    assign IMM = inst_in[31:12];  // 20-bit immediate
    
-    // ==================== 寄存器地址选择 ====================
-    always @(*) begin
-        case(GPRSel)
-            `GPRSel_RD: A3 = rd;         // 选择rd寄存器
-            `GPRSel_RT: A3 = rs2;        // 选择rt寄存器（RISC-V中不使用）
-            `GPRSel_31: A3 = 5'b11111;   // 选择x31寄存器（用于JAL）
-            default:   A3 = rd;          // 默认选择rd
-        endcase
-    end
-   
-    // ==================== 模块实例化 ====================
-    
-    // 控制单元实例化
-    ctrl U_ctrl(
-        .Op(Op), .Funct7(Funct7), .Funct3(Funct3), .Zero(Zero), 
-        .RegWrite(RegWrite), .MemWrite(mem_w),
-        .EXTOp(EXTOp), .ALUOp(ALUOp), .NPCOp(NPCOp), 
-        .ALUSrc(ALUSrc), .GPRSel(GPRSel), .WDSel(WDSel), .DMType(DMType)
-    );
-    
-    // PC单元实例化
-    PC U_PC(.clk(clk), .rst(reset), .NPC(NPC), .PC(PC_out));
-    
-    // NPC单元实例化
-    NPC U_NPC(.PC(PC_out), .NPCOp(NPCOp), .IMM(immout), .NPC(NPC), .aluout(aluout));
-    
-    // 立即数扩展单元实例化
-    EXT U_EXT(
-        .iimm_shamt(iimm_shamt), .iimm(iimm), .simm(simm), .bimm(bimm),
-        .uimm(uimm), .jimm(jimm),
-        .EXTOp(EXTOp), .immout(immout)
-    );
-    
-    // 寄存器文件实例化
-    RF U_RF(
-        .clk(clk), .rst(reset),
-        .RFWr(RegWrite), 
-        .A1(rs1), .A2(rs2), .A3(A3), 
-        .WD(WD), 
-        .RD1(RD1), .RD2(RD2)
-    );
-    
-    // ALU单元实例化
-    alu U_alu(.A(RD1), .B(B), .ALUOp(ALUOp), .C(aluout), .Zero(Zero), .PC(PC_out));
+   // 控制单元实例化
+	ctrl U_ctrl(
+		.Op(Op), .Funct7(Funct7), .Funct3(Funct3), .Zero(Zero), 
+		.RegWrite(RegWrite), .MemWrite(mem_w),
+		.EXTOp(EXTOp), .ALUOp(ALUOp), .NPCOp(NPCOp), 
+		.ALUSrc(ALUSrc), .GPRSel(GPRSel), .WDSel(WDSel),
+		.DMType(DMType_out) // 添加DMType连接
+	);
+ // instantiation of pc unit
+	PC U_PC(.clk(clk), .rst(reset), .NPC(NPC), .PC(PC_out) );
+	NPC U_NPC(.PC(PC_out), .NPCOp(NPCOp), .IMM(immout), .NPC(NPC), .aluout(aluout));
+	EXT U_EXT(
+		.iimm_shamt(iimm_shamt), .iimm(iimm), .simm(simm), .bimm(bimm),
+		.uimm(uimm), .jimm(jimm),
+		.EXTOp(EXTOp), .immout(immout)
+	);
+	RF U_RF(
+		.clk(clk), .rst(reset),
+		.RFWr(RegWrite), 
+		.A1(rs1), .A2(rs2), .A3(rd), 
+		.WD(WD), 
+		.RD1(RD1), .RD2(RD2)
+		//.reg_sel(reg_sel),
+		//.reg_data(reg_data)
+	);
+// instantiation of alu unit
+	alu U_alu(.A(RD1), .B(B), .ALUOp(ALUOp), .C(aluout), .Zero(Zero), .PC(PC_out));
 
-    // ==================== 写数据选择逻辑 ====================
-    always @(*) begin
-        case(WDSel)
-            `WDSel_FromALU: WD <= aluout;    // 来自ALU结果
-            `WDSel_FromMEM: WD <= Data_in;   // 来自内存数据
-            `WDSel_FromPC:  WD <= PC_out + 4; // 来自PC+4（跳转指令）
-            default:        WD <= aluout;    // 默认来自ALU
-        endcase
-    end
+//please connnect the CPU by yourself
+always @*
+begin
+	case(WDSel)
+		`WDSel_FromALU: WD<=aluout;
+		`WDSel_FromMEM: WD<=Data_in;
+		`WDSel_FromPC: WD<=PC_out+4;
+	endcase
+end
 
-    // ==================== 调试寄存器数据输出 ====================
-    // 为调试目的，从寄存器文件读取指定寄存器的值
-    RF U_RF_debug(
-        .clk(clk), .rst(reset),
-        .RFWr(1'b0),  // 不写入
-        .A1(reg_sel), .A2(5'b0), .A3(5'b0), 
-        .WD(32'b0), 
-        .RD1(debug_RD1), .RD2()
-    );
-    
-    assign reg_data = debug_RD1;
 
 endmodule

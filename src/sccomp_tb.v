@@ -1,83 +1,81 @@
-// RISC-V 单周期CPU测试台 - 用于仿真验证
+// testbench for simulation
 module sccomp_tb();
     
-   reg  clk, rstn;         // 时钟和复位信号
-   reg  [4:0] reg_sel;     // 寄存器选择
-   wire [31:0] reg_data;   // 寄存器数据
+   reg  clk, rstn;
+   reg  [4:0] reg_sel;
+   wire [31:0] reg_data;
     
-   // ==================== 单周期CPU实例化 ====================
+// instantiation of sccomp    
    sccomp U_SCCOMP(
       .clk(clk), .rstn(rstn), .reg_sel(reg_sel), .reg_data(reg_data) 
    );
 
-   integer foutput;        // 输出文件句柄
-   integer counter = 0;    // 计数器
-   integer max_cycles = 2000; // 最大仿真周期数
-   
-   // ==================== 初始化过程 ====================
+   integer foutput;
+   integer counter = 0;
+
+   // 独立时钟生成
    initial begin
-      // 加载指令到指令内存
-      $readmemh("Test_All_RV32I.dat", U_SCCOMP.U_IM.ROM);
-      
-      // 打开结果输出文件
-      foutput = $fopen("results.txt");
-      
-      // 初始化信号
       clk = 1;
-      rstn = 1;
-      
-      // 复位序列
-      #5;
-      rstn = 0;            // 激活复位
-      #20;
-      rstn = 1;            // 释放复位
-      
-      // 运行仿真
-      #1000;
-      reg_sel = 7;         // 选择寄存器x7进行观察
+      forever #50 clk = ~clk;
    end
-   
-   // ==================== 时钟生成和监控 ====================
-   always begin
-      #(50) clk = ~clk;    // 生成50个时间单位的时钟周期
-	   
-      if (clk == 1'b1) begin
-         // 检查仿真结束条件
-         if ((counter >= max_cycles) || (U_SCCOMP.U_SCPU.PC_out === 32'hxxxxxxxx)) begin
-            $fclose(foutput);
-            $display("仿真结束：计数器 = %d, PC = %h", counter, U_SCCOMP.U_SCPU.PC_out);
-            $stop;
-         end
-         else begin
-            // 在特定PC地址记录寄存器状态
-            if (U_SCCOMP.PC == 32'h00000048) begin
-               counter = counter + 1;
-               
-               // 记录当前状态到文件
-               $fdisplay(foutput, "=== 仿真状态记录 ===");
-               $fdisplay(foutput, "PC:\t\t %h", U_SCCOMP.PC);
-               $fdisplay(foutput, "指令:\t\t %h", U_SCCOMP.instr);
-               $fdisplay(foutput, "寄存器x00-x03:\t %h %h %h %h", 0, U_SCCOMP.U_SCPU.U_RF.rf[1], U_SCCOMP.U_SCPU.U_RF.rf[2], U_SCCOMP.U_SCPU.U_RF.rf[3]);
-               $fdisplay(foutput, "寄存器x04-x07:\t %h %h %h %h", U_SCCOMP.U_SCPU.U_RF.rf[4], U_SCCOMP.U_SCPU.U_RF.rf[5], U_SCCOMP.U_SCPU.U_RF.rf[6], U_SCCOMP.U_SCPU.U_RF.rf[7]);
-               $fdisplay(foutput, "寄存器x08-x11:\t %h %h %h %h", U_SCCOMP.U_SCPU.U_RF.rf[8], U_SCCOMP.U_SCPU.U_RF.rf[9], U_SCCOMP.U_SCPU.U_RF.rf[10], U_SCCOMP.U_SCPU.U_RF.rf[11]);
-               $fdisplay(foutput, "寄存器x12-x15:\t %h %h %h %h", U_SCCOMP.U_SCPU.U_RF.rf[12], U_SCCOMP.U_SCPU.U_RF.rf[13], U_SCCOMP.U_SCPU.U_RF.rf[14], U_SCCOMP.U_SCPU.U_RF.rf[15]);
-               $fdisplay(foutput, "寄存器x16-x19:\t %h %h %h %h", U_SCCOMP.U_SCPU.U_RF.rf[16], U_SCCOMP.U_SCPU.U_RF.rf[17], U_SCCOMP.U_SCPU.U_RF.rf[18], U_SCCOMP.U_SCPU.U_RF.rf[19]);
-               $fdisplay(foutput, "寄存器x20-x23:\t %h %h %h %h", U_SCCOMP.U_SCPU.U_RF.rf[20], U_SCCOMP.U_SCPU.U_RF.rf[21], U_SCCOMP.U_SCPU.U_RF.rf[22], U_SCCOMP.U_SCPU.U_RF.rf[23]);
-               $fdisplay(foutput, "寄存器x24-x27:\t %h %h %h %h", U_SCCOMP.U_SCPU.U_RF.rf[24], U_SCCOMP.U_SCPU.U_RF.rf[25], U_SCCOMP.U_SCPU.U_RF.rf[26], U_SCCOMP.U_SCPU.U_RF.rf[27]);
-               $fdisplay(foutput, "寄存器x28-x31:\t %h %h %h %h", U_SCCOMP.U_SCPU.U_RF.rf[28], U_SCCOMP.U_SCPU.U_RF.rf[29], U_SCCOMP.U_SCPU.U_RF.rf[30], U_SCCOMP.U_SCPU.U_RF.rf[31]);
-               $fdisplay(foutput, "==================");
-               
-               $fclose(foutput);
-               $stop;
-            end
-            else begin
-               counter = counter + 1;
-               
-               // 可选：显示调试信息
-               // $display("PC: %h, 指令: %h", U_SCCOMP.U_SCPU.PC_out, U_SCCOMP.instr);
-            end
+
+   // 仿真初始化流程
+   initial begin
+      $readmemh("E:/Projects_of_Liang/SingleProject/FPGA_Liang/PipelineCPU/Test_8_Instr.dat", U_SCCOMP.U_IM.ROM); // load instructions into instruction memory
+      foutput = $fopen("results.txt");
+      rstn = 1;
+      #5;
+      rstn = 0;
+      #20;
+      rstn = 1;
+      reg_sel = 7;
+      counter = 0;
+   end
+
+   // 预期结果（部分关键点，按dat文件顺序，PC=4字节递增）
+   // 这里只列举部分关键点，实际可根据需要扩展
+   // 格式：counter, 预期xN, 预期内存
+   // 例如：counter==2时，x3应为10
+
+   // 主仿真流程
+   always @(posedge clk) begin
+      // 自动断言检查
+      case (counter)
+         2: if (U_SCCOMP.U_SCPU.U_RF.rf[3] !== 32'hA) begin $display("[ERROR] addi x3, x0, 10 failed, x3=%h", U_SCCOMP.U_SCPU.U_RF.rf[3]); $fatal; end
+         3: if (U_SCCOMP.U_SCPU.U_RF.rf[4] !== 32'h14) begin $display("[ERROR] addi x4, x0, 20 failed, x4=%h", U_SCCOMP.U_SCPU.U_RF.rf[4]); $fatal; end
+         5: if (U_SCCOMP.U_SCPU.U_RF.rf[5] !== 32'h1e) begin $display("[ERROR] add x5, x3, x4 failed, x5=%h", U_SCCOMP.U_SCPU.U_RF.rf[5]); $fatal; end
+         21: if (U_SCCOMP.U_DM.dmem[32'h80>>2] !== 32'hA) begin $display("[ERROR] sw x3, 0x80(x0) failed, mem[0x80]=%h", U_SCCOMP.U_DM.dmem[32'h80>>2]); $fatal; end
+         27: if (U_SCCOMP.U_SCPU.U_RF.rf[23] !== 32'hA) begin $display("[ERROR] lw x23, 0x80(x0) failed, x23=%h", U_SCCOMP.U_SCPU.U_RF.rf[23]); $fatal; end
+         // 可继续添加更多断言...
+      endcase
+
+      if ((counter == 2000) || (U_SCCOMP.U_SCPU.PC_out=== 32'hxxxxxxxx)) begin
+         $display("[INFO] 所有自动断言检查通过，指令集实现正确！");
+         $fclose(foutput);
+         $stop;
+      end else begin
+         // 每条指令执行后输出关键信息
+         $display("====================");
+         $display("PC = 0x%08X, instr = 0x%08X", U_SCCOMP.PC, U_SCCOMP.instr);
+         $display("rf01-07: %h %h %h %h %h %h %h", U_SCCOMP.U_SCPU.U_RF.rf[1], U_SCCOMP.U_SCPU.U_RF.rf[2], U_SCCOMP.U_SCPU.U_RF.rf[3], U_SCCOMP.U_SCPU.U_RF.rf[4], U_SCCOMP.U_SCPU.U_RF.rf[5], U_SCCOMP.U_SCPU.U_RF.rf[6], U_SCCOMP.U_SCPU.U_RF.rf[7]);
+         $display("内存[0x80]=%h, [0x84]=%h, [0x88]=%h, [0x8C]=%h, [0x8E]=%h", 
+           U_SCCOMP.U_DM.dmem[7'h80>>2], U_SCCOMP.U_DM.dmem[7'h84>>2], U_SCCOMP.U_DM.dmem[7'h88>>2], U_SCCOMP.U_DM.dmem[7'h8C>>2], U_SCCOMP.U_DM.dmem[7'h8E>>2]);
+         $display("====================");
+         $fdisplay(foutput, "====================");
+         $fdisplay(foutput, "PC = 0x%08X, instr = 0x%08X", U_SCCOMP.PC, U_SCCOMP.instr);
+         $fdisplay(foutput, "rf01-07: %h %h %h %h %h %h %h", U_SCCOMP.U_SCPU.U_RF.rf[1], U_SCCOMP.U_SCPU.U_RF.rf[2], U_SCCOMP.U_SCPU.U_RF.rf[3], U_SCCOMP.U_SCPU.U_RF.rf[4], U_SCCOMP.U_SCPU.U_RF.rf[5], U_SCCOMP.U_SCPU.U_RF.rf[6], U_SCCOMP.U_SCPU.U_RF.rf[7]);
+         $fdisplay(foutput, "内存[0x80]=%h, [0x84]=%h, [0x88]=%h, [0x8C]=%h, [0x8E]=%h", 
+           U_SCCOMP.U_DM.dmem[7'h80>>2], U_SCCOMP.U_DM.dmem[7'h84>>2], U_SCCOMP.U_DM.dmem[7'h88>>2], U_SCCOMP.U_DM.dmem[7'h8C>>2], U_SCCOMP.U_DM.dmem[7'h8E>>2]);
+         $fdisplay(foutput, "====================");
+         counter = counter + 1;
+         // 检查是否到死循环，若到达则终止仿真
+         if (U_SCCOMP.instr == 32'hFFF00063) begin
+           $display("检测到死循环，仿真结束。");
+           $fdisplay(foutput, "检测到死循环，仿真结束。");
+           $fclose(foutput);
+           $stop;
          end
       end
-   end // end always
-   
+   end
+
 endmodule

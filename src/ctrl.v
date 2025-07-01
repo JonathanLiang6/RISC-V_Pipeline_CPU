@@ -1,139 +1,112 @@
-// RISC-V 流水线CPU控制单元 - 支持完整的RV32I指令集
-// 负责指令解码和控制信号生成
+// `include "ctrl_encode_def.v"
 
+//123
 module ctrl(Op, Funct7, Funct3, Zero, 
             RegWrite, MemWrite,
             EXTOp, ALUOp, NPCOp, 
-            ALUSrc, GPRSel, WDSel, DMType);
+            ALUSrc, GPRSel, WDSel,DMType
+            );
             
-   input  [6:0] Op;       // 操作码
-   input  [6:0] Funct7;   // funct7字段
-   input  [2:0] Funct3;   // funct3字段
-   input        Zero;     // ALU零标志位
+   input  [6:0] Op;       // opcode
+   input  [6:0] Funct7;    // funct7
+   input  [2:0] Funct3;    // funct3
+   input        Zero;
    
-   output       RegWrite; // 寄存器写使能
-   output       MemWrite; // 内存写使能
-   output [5:0] EXTOp;    // 立即数扩展控制
-   output [4:0] ALUOp;    // ALU操作码
-   output [2:0] NPCOp;    // 下一条PC操作
-   output       ALUSrc;   // ALU源操作数选择
-   output [2:0] DMType;   // 内存访问类型
-   output [1:0] GPRSel;   // 寄存器选择
-   output [1:0] WDSel;    // 写数据选择
+   output       RegWrite; // control signal for register write
+   output       MemWrite; // control signal for memory write
+   output [5:0] EXTOp;    // control signal to signed extension
+   output [4:0] ALUOp;    // ALU opertion
+   output [2:0] NPCOp;    // next pc operation
+   output       ALUSrc;   // ALU source for A
+	output [2:0] DMType;   // 数据内存访问类型控制信号
+   output [1:0] GPRSel;   // general purpose register selection
+   output [1:0] WDSel;    // (register) write data selection
    
-   // ==================== 指令类型识别 ====================
-   
-   // R型指令 (寄存器-寄存器操作)
-   wire rtype = ~Op[6]&Op[5]&Op[4]&~Op[3]&~Op[2]&Op[1]&Op[0]; // 0110011
-   
-   // I型指令 (立即数操作)
-   wire itype_l = ~Op[6]&~Op[5]&~Op[4]&~Op[3]&~Op[2]&Op[1]&Op[0]; // 0000011 (加载)
-   wire itype_r = ~Op[6]&~Op[5]&Op[4]&~Op[3]&~Op[2]&Op[1]&Op[0];  // 0010011 (立即数运算)
-   wire itype_jalr = Op[6]&Op[5]&~Op[4]&~Op[3]&Op[2]&Op[1]&Op[0]; // 1100111 (JALR)
-   
-   // S型指令 (存储操作)
-   wire stype = ~Op[6]&Op[5]&~Op[4]&~Op[3]&~Op[2]&Op[1]&Op[0]; // 0100011
-   
-   // B型指令 (分支操作)
-   wire btype = Op[6]&Op[5]&~Op[4]&~Op[3]&~Op[2]&Op[1]&Op[0]; // 1100011
-   
-   // U型指令 (高位立即数)
-   wire utype_lui = ~Op[6]&Op[5]&Op[4]&~Op[3]&~Op[2]&Op[1]&Op[0];   // 0110111 (LUI)
-   wire utype_auipc = ~Op[6]&Op[5]&Op[4]&~Op[3]&~Op[2]&Op[1]&~Op[0]; // 0010111 (AUIPC)
-   
-   // J型指令 (跳转)
-   wire jtype = Op[6]&Op[5]&~Op[4]&Op[3]&Op[2]&Op[1]&Op[0]; // 1101111 (JAL)
-   
-   // ==================== 具体指令识别 ====================
-   
-   // R型指令解码
-   wire i_add  = rtype & ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]&~Funct3[2]&~Funct3[1]&~Funct3[0]; // ADD 0000000 000
-   wire i_sub  = rtype & ~Funct7[6]&Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]&~Funct3[2]&~Funct3[1]&~Funct3[0]; // SUB 0100000 000
-   wire i_sll  = rtype & ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]&~Funct3[2]&~Funct3[1]&Funct3[0]; // SLL 0000000 001
-   wire i_slt  = rtype & ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]&~Funct3[2]&Funct3[1]&~Funct3[0]; // SLT 0000000 010
-   wire i_sltu = rtype & ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]&~Funct3[2]&Funct3[1]&Funct3[0]; // SLTU 0000000 011
-   wire i_xor  = rtype & ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]&Funct3[2]&~Funct3[1]&~Funct3[0]; // XOR 0000000 100
-   wire i_srl  = rtype & ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]&Funct3[2]&~Funct3[1]&Funct3[0]; // SRL 0000000 101
-   wire i_sra  = rtype & ~Funct7[6]&Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]&Funct3[2]&~Funct3[1]&Funct3[0]; // SRA 0100000 101
-   wire i_or   = rtype & ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]&Funct3[2]&Funct3[1]&~Funct3[0]; // OR 0000000 110
-   wire i_and  = rtype & ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]&Funct3[2]&Funct3[1]&Funct3[0]; // AND 0000000 111
-   
-   // I型指令解码 (立即数运算)
-   wire i_addi  = itype_r & ~Funct3[2]&~Funct3[1]&~Funct3[0]; // ADDI 000
-   wire i_slti  = itype_r & ~Funct3[2]&Funct3[1]&~Funct3[0]; // SLTI 010
-   wire i_sltiu = itype_r & ~Funct3[2]&Funct3[1]&Funct3[0]; // SLTIU 011
-   wire i_xori  = itype_r & Funct3[2]&~Funct3[1]&~Funct3[0]; // XORI 100
-   wire i_ori   = itype_r & Funct3[2]&Funct3[1]&~Funct3[0]; // ORI 110
-   wire i_andi  = itype_r & Funct3[2]&Funct3[1]&Funct3[0]; // ANDI 111
-   wire i_slli  = itype_r & ~Funct3[2]&~Funct3[1]&Funct3[0] & ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]; // SLLI 001 0000000
-   wire i_srli  = itype_r & Funct3[2]&~Funct3[1]&Funct3[0] & ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]; // SRLI 101 0000000
-   wire i_srai  = itype_r & Funct3[2]&~Funct3[1]&Funct3[0] & ~Funct7[6]&Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]; // SRAI 101 0100000
-   
-   // I型指令解码 (加载操作)
-   wire i_lb  = itype_l & ~Funct3[2]&~Funct3[1]&~Funct3[0]; // LB 000
-   wire i_lh  = itype_l & ~Funct3[2]&~Funct3[1]&Funct3[0]; // LH 001
-   wire i_lw  = itype_l & ~Funct3[2]&Funct3[1]&~Funct3[0]; // LW 010
-   wire i_lbu = itype_l & ~Funct3[2]&Funct3[1]&Funct3[0]; // LBU 100
-   wire i_lhu = itype_l & Funct3[2]&~Funct3[1]&~Funct3[0]; // LHU 101
-   
-   // S型指令解码 (存储操作)
-   wire i_sb = stype & ~Funct3[2]&~Funct3[1]&~Funct3[0]; // SB 000
-   wire i_sh = stype & ~Funct3[2]&~Funct3[1]&Funct3[0]; // SH 001
-   wire i_sw = stype & ~Funct3[2]&Funct3[1]&~Funct3[0]; // SW 010
-   
-   // B型指令解码 (分支操作)
-   wire i_beq  = btype & ~Funct3[2]&~Funct3[1]&~Funct3[0]; // BEQ 000
-   wire i_bne  = btype & ~Funct3[2]&~Funct3[1]&Funct3[0]; // BNE 001
-   wire i_blt  = btype & ~Funct3[2]&Funct3[1]&~Funct3[0]; // BLT 100
-   wire i_bge  = btype & ~Funct3[2]&Funct3[1]&Funct3[0]; // BGE 101
-   wire i_bltu = btype & Funct3[2]&~Funct3[1]&~Funct3[0]; // BLTU 110
-   wire i_bgeu = btype & Funct3[2]&~Funct3[1]&Funct3[0]; // BGEU 111
-   
-   // U型和J型指令解码
-   wire i_lui = utype_lui;    // LUI指令
-   wire i_auipc = utype_auipc; // AUIPC指令
-   wire i_jal = jtype;        // JAL指令
-   wire i_jalr = itype_jalr;  // JALR指令
-   
-   // ==================== 控制信号生成 ====================
-   
-   // 寄存器写使能 - 所有需要写寄存器的指令
-   assign RegWrite = rtype | itype_r | itype_l | utype_lui | utype_auipc | jtype | itype_jalr;
-   
-   // 内存写使能 - 所有存储指令
-   assign MemWrite = stype;
-   
-   // ALU源操作数选择 - 需要立即数的指令
-   assign ALUSrc = itype_r | itype_l | stype | utype_lui | utype_auipc | jtype | itype_jalr;
-   
-   // 立即数扩展控制
-   assign EXTOp[5] = i_slli | i_srli | i_srai;                    // 移位指令使用shamt
-   assign EXTOp[4] = itype_r | itype_l | itype_jalr;              // I型指令
-   assign EXTOp[3] = stype;                                       // S型指令
-   assign EXTOp[2] = btype;                                       // B型指令
-   assign EXTOp[1] = utype_lui | utype_auipc;                     // U型指令
-   assign EXTOp[0] = jtype;                                       // J型指令
-   
-   // 写数据选择
-   assign WDSel[0] = itype_l;                                     // 加载指令从内存读取
-   assign WDSel[1] = jtype | itype_jalr;                          // 跳转指令写PC+4
-   
-   // 下一条PC操作
-   assign NPCOp[0] = (btype & Zero & (i_beq | i_bge | i_bgeu)) | (btype & ~Zero & (i_bne | i_blt | i_bltu)); // 分支条件
-   assign NPCOp[1] = jtype;                                       // JAL跳转
-   assign NPCOp[2] = itype_jalr;                                  // JALR跳转
-   
-   // ALU操作码生成
-   assign ALUOp[0] = i_add | i_addi | i_lui | i_auipc | i_lb | i_lh | i_lw | i_lbu | i_lhu | i_sb | i_sh | i_sw | i_jal | i_jalr;
-   assign ALUOp[1] = i_sub | i_slt | i_slti | i_blt | i_bge;
-   assign ALUOp[2] = i_sltu | i_sltiu | i_bltu | i_bgeu;
-   assign ALUOp[3] = i_xor | i_xori | i_beq | i_bne;
-   assign ALUOp[4] = i_or | i_ori | i_and | i_andi | i_sll | i_slli | i_srl | i_srli | i_sra | i_srai;
-   
-   // 内存访问类型（目前只支持字访问，可扩展）
-   assign DMType = `dm_word;
-   
-   // 寄存器选择（目前固定使用rd）
-   assign GPRSel = `GPRSel_RD;
+  // r format
+    wire rtype  = ~Op[6]&Op[5]&Op[4]&~Op[3]&~Op[2]&Op[1]&Op[0]; //0110011
+    wire i_add  = rtype& ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]&~Funct3[2]&~Funct3[1]&~Funct3[0]; // add 0000000 000
+    wire i_sub  = rtype& ~Funct7[6]& Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]&~Funct3[2]&~Funct3[1]&~Funct3[0]; // sub 0100000 000
+    wire i_or   = rtype& ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]& Funct3[2]& Funct3[1]&~Funct3[0]; // or 0000000 110
+    wire i_and  = rtype& ~Funct7[6]&~Funct7[5]&~Funct7[4]&~Funct7[3]&~Funct7[2]&~Funct7[1]&~Funct7[0]& Funct3[2]& Funct3[1]& Funct3[0]; // and 0000000 111
+ 
+
+ // i format
+   wire itype_l  = ~Op[6]&~Op[5]&~Op[4]&~Op[3]&~Op[2]&Op[1]&Op[0]; //0000011
+
+// i format
+    wire itype_r  = ~Op[6]&~Op[5]&Op[4]&~Op[3]&~Op[2]&Op[1]&Op[0]; //0010011
+    wire i_addi  =  itype_r& ~Funct3[2]& ~Funct3[1]& ~Funct3[0]; // addi 000
+    wire i_ori  =  itype_r& Funct3[2]& Funct3[1]&~Funct3[0]; // ori 110
+	
+ //jalr
+	wire i_jalr =Op[6]&Op[5]&~Op[4]&~Op[3]&Op[2]&Op[1]&Op[0];//jalr 1100111
+
+  // s format
+   wire stype  = ~Op[6]&Op[5]&~Op[4]&~Op[3]&~Op[2]&Op[1]&Op[0];//0100011
+   wire i_sw   =  stype& ~Funct3[2]& Funct3[1]&~Funct3[0]; // sw 010
+
+  // sb format
+   wire sbtype  = Op[6]&Op[5]&~Op[4]&~Op[3]&~Op[2]&Op[1]&Op[0];//1100011
+   wire i_beq  = sbtype& ~Funct3[2]& ~Funct3[1]&~Funct3[0]; // beq
+	
+ // j format
+   wire i_jal  = Op[6]& Op[5]&~Op[4]& Op[3]& Op[2]& Op[1]& Op[0];  // jal 1101111
+
+  // generate control signals
+ assign RegWrite   = rtype | itype_r | i_jalr | i_jal; // register write
+  assign MemWrite   = stype;                           // memory write
+  assign ALUSrc     = itype_r | stype | i_jal | i_jalr;   // ALU B is from instruction immediate
+
+  // signed extension
+  // EXT_CTRL_ITYPE_SHAMT 6'b100000
+  // EXT_CTRL_ITYPE	      6'b010000
+  // EXT_CTRL_STYPE	      6'b001000
+  // EXT_CTRL_BTYPE	      6'b000100
+  // EXT_CTRL_UTYPE	      6'b000010
+  // EXT_CTRL_JTYPE	      6'b000001
+  assign EXTOp[5] = 0;
+  //assign EXTOp[4]    =  i_ori | i_andi | i_jalr;
+  assign EXTOp[4]    =  i_ori;  
+  assign EXTOp[3]    = stype; 
+  assign EXTOp[2]    = sbtype; 
+  assign EXTOp[1]    = 0;   
+  assign EXTOp[0]    = i_jal;         
+
+
+  
+  
+  // WDSel_FromALU 2'b00
+  // WDSel_FromMEM 2'b01
+  // WDSel_FromPC  2'b10 
+  assign WDSel[0] = itype_l;
+  assign WDSel[1] = i_jal | i_jalr;
+
+  // NPC_PLUS4   3'b000
+  // NPC_BRANCH  3'b001
+  // NPC_JUMP    3'b010
+  // NPC_JALR	3'b100
+  assign NPCOp[0] = sbtype & Zero;
+  assign NPCOp[1] = i_jal;
+	assign NPCOp[2]=i_jalr;
+  
+
+ 
+	assign ALUOp[0] = itype_l|stype|i_addi|i_ori|i_add|i_or;
+	assign ALUOp[1] = i_jalr|itype_l|stype|i_addi|i_add|i_and;
+	//assign ALUOp[2] = i_andi|i_and|i_ori|i_or|i_beq|i_sub;
+	//assign ALUOp[3] = i_andi|i_and|i_ori|i_or;
+	assign ALUOp[2] = i_and|i_ori|i_or|i_beq|i_sub;
+    assign ALUOp[3] = i_and|i_ori|i_or;    
+	assign ALUOp[4] = 0;
+
+  // 根据指令类型和Funct3确定数据内存访问类型
+  assign DMType = (itype_l || stype) ? // 只有在加载或存储指令时才关心DMType
+                    (Funct3 == 3'b000) ? 3'b000 : // LB, SB - 字节访问
+                    (Funct3 == 3'b001) ? 3'b001 : // LH, SH - 半字访问  
+                    (Funct3 == 3'b010) ? 3'b010 : // LW, SW - 字访问
+                    (Funct3 == 3'b100) ? 3'b100 : // LBU - 无符号字节访问
+                    (Funct3 == 3'b101) ? 3'b101 : // LHU - 无符号半字访问
+                    3'b000 : // 对于非内存访问指令，DMType不关心，默认字访问
+                    3'b000;
 
 endmodule

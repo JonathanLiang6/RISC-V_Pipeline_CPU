@@ -1,63 +1,66 @@
-// 各级流水线寄存器模块，保存各阶段数据和控制信号，实现5级流水线的数据传递
-// IF/ID寄存器：保存IF到ID阶段的PC和指令
-// ID/EX寄存器：保存ID到EX阶段的操作数、立即数和控制信号
-// EX/MEM寄存器：保存EX到MEM阶段的ALU结果、数据和控制信号
-// MEM/WB寄存器：保存MEM到WB阶段的结果和控制信号
+// ============================================================================
+// 文件名称：pipeline_regs.v
+// 文件功能：流水线寄存器模块，保存各阶段数据和控制信号，实现5级流水线数据传递
+// ============================================================================
+
+// --------------------
+// IF/ID流水线寄存器
+// --------------------
 module IF_ID_Reg(
-    input clk,
-    input rst,
-    input flush,
-    input stall,
-    input [31:0] PC_in,
-    input [31:0] instr_in,
-    output reg [31:0] PC_out,
-    output reg [31:0] instr_out
+    input         clk,         // 时钟信号
+    input         rst,         // 复位信号
+    input         flush,       // 冲刷信号
+    input         stall,       // 暂停信号
+    input  [31:0] PC_in,       // 输入PC
+    input  [31:0] instr_in,    // 输入指令
+    output reg [31:0] PC_out,  // 输出PC
+    output reg [31:0] instr_out// 输出指令
 );
     always @(posedge clk or posedge rst) begin
         if (rst) begin
             PC_out <= 32'h0;
             instr_out <= 32'h00000013;
-        end
-        else if (flush) begin
+        end else if (flush) begin
             PC_out <= 32'h0;
             instr_out <= 32'h00000013;
-        end
-        else if (!stall) begin
+        end else if (!stall) begin
             PC_out <= PC_in;
             instr_out <= instr_in;
         end
     end
 endmodule
 
-// ID/EX寄存器
+// --------------------
+// ID/EX流水线寄存器
+// --------------------
 module ID_EX_Reg(
-    input clk,
-    input rst,
-    input flush,
-    input [31:0] PC_in,
-    input [31:0] instr_in,
-    input [31:0] rs1_data_in,
-    input [31:0] rs2_data_in,
-    input [31:0] imm_in,
-    input RegWrite_in,
-    input MemWrite_in,
-    input MemRead_in,
-    input [4:0] ALUOp_in,
-    input ALUSrc_in,
-    input [1:0] WDSel_in,
-    input [2:0] DMType_in,
+    input         clk,
+    input         rst,
+    input         flush,
+    input  [31:0] PC_in,
+    input  [31:0] instr_in,
+    input  [31:0] rs1_data_in,
+    input  [31:0] rs2_data_in,
+    input  [31:0] imm_in,
+    input         RegWrite_in,
+    input         MemWrite_in,
+    input         MemRead_in,
+    input  [4:0]  ALUOp_in,
+    input         ALUSrc_in,
+    input  [1:0]  WDSel_in,
+    input  [2:0]  DMType_in,
     output reg [31:0] PC_out,
     output reg [31:0] instr_out,
     output reg [31:0] rs1_data_out,
     output reg [31:0] rs2_data_out,
     output reg [31:0] imm_out,
-    output reg RegWrite_out,
-    output reg MemWrite_out,
-    output reg MemRead_out,
-    output reg [4:0] ALUOp_out,
-    output reg ALUSrc_out,
-    output reg [1:0] WDSel_out,
-    output reg [2:0] DMType_out
+    output reg        RegWrite_out,
+    output reg        MemWrite_out,
+    output reg        MemRead_out,
+    output reg [4:0]  ALUOp_out,
+    output reg        ALUSrc_out,
+    output reg [1:0]  WDSel_out,
+    output reg [2:0]  DMType_out
 );
     always @(posedge clk or posedge rst) begin
         if (rst) begin
@@ -73,8 +76,7 @@ module ID_EX_Reg(
             ALUSrc_out <= 1'b0;
             WDSel_out <= 2'h0;
             DMType_out <= 3'h0;
-        end
-        else if (flush) begin
+        end else if (flush) begin
             PC_out <= 32'h0;
             instr_out <= 32'h00000013;
             rs1_data_out <= 32'h0;
@@ -87,8 +89,7 @@ module ID_EX_Reg(
             ALUSrc_out <= 1'b0;
             WDSel_out <= 2'h0;
             DMType_out <= 3'h0;
-        end
-        else begin
+        end else begin
             PC_out <= PC_in;
             instr_out <= instr_in;
             rs1_data_out <= rs1_data_in;
@@ -105,28 +106,29 @@ module ID_EX_Reg(
     end
 endmodule
 
-// EX/MEM寄存器
+// --------------------
+// EX/MEM流水线寄存器
+// --------------------
 module EX_MEM_Reg(
-    input clk,
-    input rst,
-    
-    input [31:0] alu_result_in,
-    input [31:0] rs2_data_in,
-    input [31:0] instr_in,
-    input RegWrite_in,
-    input MemWrite_in,
-    input MemRead_in,
-    input [1:0] WDSel_in,
-    input [2:0] DMType_in,
-    input [31:0] PC_in,
+    input         clk,
+    input         rst,
+    input  [31:0] alu_result_in,
+    input  [31:0] rs2_data_in,
+    input  [31:0] instr_in,
+    input         RegWrite_in,
+    input         MemWrite_in,
+    input         MemRead_in,
+    input  [1:0]  WDSel_in,
+    input  [2:0]  DMType_in,
+    input  [31:0] PC_in,
     output reg [31:0] alu_result_out,
     output reg [31:0] rs2_data_out,
     output reg [31:0] instr_out,
-    output reg RegWrite_out,
-    output reg MemWrite_out,
-    output reg MemRead_out,
-    output reg [1:0] WDSel_out,
-    output reg [2:0] DMType_out,
+    output reg        RegWrite_out,
+    output reg        MemWrite_out,
+    output reg        MemRead_out,
+    output reg [1:0]  WDSel_out,
+    output reg [2:0]  DMType_out,
     output reg [31:0] PC_out
 );
     always @(posedge clk or posedge rst) begin
@@ -140,8 +142,7 @@ module EX_MEM_Reg(
             WDSel_out <= 2'h0;
             DMType_out <= 3'h0;
             PC_out <= 32'h0;
-        end
-        else begin
+        end else begin
             alu_result_out <= alu_result_in;
             rs2_data_out <= rs2_data_in;
             instr_out <= instr_in;
@@ -155,21 +156,23 @@ module EX_MEM_Reg(
     end
 endmodule
 
-// MEM/WB寄存器
+// --------------------
+// MEM/WB流水线寄存器
+// --------------------
 module MEM_WB_Reg(
-    input clk,
-    input rst,
-    input [31:0] alu_result_in,
-    input [31:0] mem_data_in,
-    input [31:0] instr_in,
-    input RegWrite_in,
-    input [1:0] WDSel_in,
-    input [31:0] PC_in,
+    input         clk,
+    input         rst,
+    input  [31:0] alu_result_in,
+    input  [31:0] mem_data_in,
+    input  [31:0] instr_in,
+    input         RegWrite_in,
+    input  [1:0]  WDSel_in,
+    input  [31:0] PC_in,
     output reg [31:0] alu_result_out,
     output reg [31:0] mem_data_out,
     output reg [31:0] instr_out,
-    output reg RegWrite_out,
-    output reg [1:0] WDSel_out,
+    output reg        RegWrite_out,
+    output reg [1:0]  WDSel_out,
     output reg [31:0] PC_out
 );
     always @(posedge clk or posedge rst) begin
@@ -180,8 +183,7 @@ module MEM_WB_Reg(
             RegWrite_out <= 1'b0;
             WDSel_out <= 2'h0;
             PC_out <= 32'h0;
-        end
-        else begin
+        end else begin
             alu_result_out <= alu_result_in;
             mem_data_out <= mem_data_in;
             instr_out <= instr_in;

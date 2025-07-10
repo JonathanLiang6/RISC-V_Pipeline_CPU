@@ -1,79 +1,66 @@
-// 冒险检测与转发单元，检测流水线中的数据冒险和控制冒险，并生成暂停、冲刷、转发等控制信号
+// ============================================================================
+// 模块名称：hazard_units
+// 模块功能：冒险检测与前递单元，检测流水线中的数据冒险和控制冒险，生成暂停、冲刷、前递等控制信号
+// ============================================================================
 `include "ctrl_encode_def.v"
-// 危险检测单元 - 检测和处理流水线中的数据冒险和控制冒险
-// 该模块实现了Load-Use冒险检测和分支控制冒险检测
+
+// --------------------
+// 冒险检测单元
+// --------------------
 module HazardDetectionUnit(
-    input [4:0] rs1_ID, rs2_ID,    // ID阶段的源寄存器地址
-    input [4:0] rd_EX, rd_MEM,     // EX和MEM阶段的目标寄存器地址
-    input MemRead_EX,              // EX阶段是否为Load指令
-    input RegWrite_EX, RegWrite_MEM, // EX和MEM阶段是否写寄存器
-    input [6:0] opcode_EX,         // EX阶段的opcode，用于检测分支指令
-    input [2:0] funct3_EX,         // EX阶段的funct3，用于检测分支指令
-    input branch_taken_EX,         // EX阶段分支是否被采取
-    input [6:0] opcode_ID,         // ID阶段的opcode，用于检测JAL指令
-    input [31:0] imm_EX,           // EX阶段的立即数
-    input [31:0] imm_ID,           // ID阶段的立即数
-    input [31:0] alu_result_EX,    // EX阶段ALU输出（JALR用）
-    input [31:0] PC_EX,           // EX阶段PC
-    input [31:0] PC_ID,           // ID阶段PC
-    output reg stall_IF,           // 暂停IF阶段的信号
-    output reg flush_ID,           // 清空ID阶段的信号
-    output reg flush_EX,           // 清空EX阶段的信号
-    output reg [2:0] NPCOp_out,
-    output reg [31:0] NPCImm_out,
-    output reg [31:0] base_PC_out
+    input  [4:0]  rs1_ID, rs2_ID,    // ID阶段源寄存器地址
+    input  [4:0]  rd_EX, rd_MEM,     // EX/MEM阶段目标寄存器地址
+    input         MemRead_EX,        // EX阶段是否为Load指令
+    input         RegWrite_EX, RegWrite_MEM, // EX/MEM阶段是否写寄存器
+    input  [6:0]  opcode_EX,         // EX阶段操作码
+    input  [2:0]  funct3_EX,         // EX阶段funct3
+    input         branch_taken_EX,   // EX阶段分支是否采纳
+    input  [6:0]  opcode_ID,         // ID阶段操作码
+    input  [31:0] imm_EX,            // EX阶段立即数
+    input  [31:0] imm_ID,            // ID阶段立即数
+    input  [31:0] alu_result_EX,     // EX阶段ALU输出（JALR用）
+    input  [31:0] PC_EX,             // EX阶段PC
+    input  [31:0] PC_ID,             // ID阶段PC
+    output reg    stall_IF,          // IF阶段暂停信号
+    output reg    flush_ID,          // ID阶段冲刷信号
+    output reg    flush_EX,          // EX阶段冲刷信号
+    output reg [2:0]  NPCOp_out,     // 下一PC操作类型
+    output reg [31:0] NPCImm_out,    // 下一PC立即数
+    output reg [31:0] base_PC_out    // 下一PC基址
 );
-    // 检测是否为分支指令
-    wire is_branch_EX;
-    assign is_branch_EX = (opcode_EX == `OPCODE_BRANCH); // 分支指令的操作码
-    
-    // 检测是否为JAL指令
-    wire is_jal_ID;
-    assign is_jal_ID = (opcode_ID == `OPCODE_JAL); // JAL指令的操作码
-    
-    // 检测是否为JALR指令
-    wire is_jalr_EX;
-    assign is_jalr_EX = (opcode_EX == `OPCODE_JALR); // JALR指令的操作码
-    
+    // =====================
+    // Load-Use冒险检测
+    // =====================
     always @(*) begin
-        // Load-Use冒险检测逻辑
-        // 当EX阶段是Load指令且目标寄存器与ID阶段的源寄存器相同时会发生冒险
-        // 此处处理的是Load与接下来第一条指令的冒险
-        if (MemRead_EX && 
-            ((rd_EX == rs1_ID && rs1_ID != 5'b0) ||    // EX阶段目标寄存器与ID阶段rs1相同
-             (rd_EX == rs2_ID && rs2_ID != 5'b0))) begin // EX阶段目标寄存器与ID阶段rs2相同
-            stall_IF = 1'b1;  // 暂停PC和IF/ID寄存器
-            flush_ID = 1'b0;  // ID阶段不需要冲刷，stall会使其保持
-            flush_EX = 1'b1;  // 向EX阶段插入一个气泡 (NOP)
-        end
-        // JALR优先级最高
-        else if (opcode_EX == `OPCODE_JALR) begin
+        if (MemRead_EX &&
+            ((rd_EX == rs1_ID && rs1_ID != 5'b0) ||
+             (rd_EX == rs2_ID && rs2_ID != 5'b0))) begin
+            stall_IF = 1'b1;
+            flush_ID = 1'b0;
+            flush_EX = 1'b1;
+        end else if (opcode_EX == `OPCODE_JALR) begin
             stall_IF = 1'b0;
             flush_ID = 1'b1;
             flush_EX = 1'b0;
-        end
-        // Branch次之
-        else if ((opcode_EX == `OPCODE_BRANCH) && branch_taken_EX) begin
+        end else if ((opcode_EX == `OPCODE_BRANCH) && branch_taken_EX) begin
             stall_IF = 1'b0;
             flush_ID = 1'b1;
             flush_EX = 1'b1;
-        end
-        else if (opcode_ID == `OPCODE_JAL) begin
+        end else if (opcode_ID == `OPCODE_JAL) begin
             stall_IF = 1'b0;
             flush_ID = 1'b1;
             flush_EX = 1'b0;
-        end
-        else begin
+        end else begin
             stall_IF = 1'b0;
             flush_ID = 1'b0;
             flush_EX = 1'b0;
         end
-
-
-        // NPCOp/NPCImm/base_PC优先级决策
+        // =====================
+        // 下一PC控制信号优先级
+        // =====================
         if (opcode_EX == `OPCODE_JALR) begin
             NPCOp_out = `NPC_JALR;
-            NPCImm_out = 32'b0; // JALR使用alu_result_EX
+            NPCImm_out = 32'b0;
             base_PC_out = PC_EX;
         end else if ((opcode_EX == `OPCODE_BRANCH) && branch_taken_EX) begin
             NPCOp_out = `NPC_BRANCH;
@@ -91,54 +78,43 @@ module HazardDetectionUnit(
     end
 endmodule
 
-// 转发单元 - 实现数据转发以解决数据冒险
-// 该模块检测数据依赖并生成转发控制信号，将最新数据转发到EX阶段和ID阶段
+// --------------------
+// 前递单元
+// --------------------
 module ForwardingUnit(
-    input [4:0] rs1_EX, rs2_EX,    // EX阶段的源寄存器地址
-    input [4:0] rs1_ID, rs2_ID,    // ID阶段的源寄存器地址
-    input [4:0] rd_MEM, rd_WB,     // MEM和WB阶段的目标寄存器地址
-    input RegWrite_MEM, RegWrite_WB, // MEM和WB阶段是否写寄存器
-    output reg [1:0] forward_rs1_EX,  // EX阶段rs1的转发控制信号
-    output reg [1:0] forward_rs2_EX,  // EX阶段rs2的转发控制信号
-    output reg forward_rs1_ID,  // ID阶段rs1的转发控制信号
-    output reg forward_rs2_ID   // ID阶段rs2的转发控制信号
+    input  [4:0]  rs1_EX, rs2_EX,    // EX阶段源寄存器地址
+    input  [4:0]  rs1_ID, rs2_ID,    // ID阶段源寄存器地址
+    input  [4:0]  rd_MEM, rd_WB,     // MEM/WB阶段目标寄存器地址
+    input         RegWrite_MEM, RegWrite_WB, // MEM/WB阶段是否写寄存器
+    output reg [1:0] forward_rs1_EX, // EX阶段rs1前递控制
+    output reg [1:0] forward_rs2_EX, // EX阶段rs2前递控制
+    output reg       forward_rs1_ID, // ID阶段rs1前递控制
+    output reg       forward_rs2_ID  // ID阶段rs2前递控制
 );
     always @(*) begin
-        // EX阶段rs1的转发逻辑
+        // EX阶段rs1前递
         if (RegWrite_MEM && rd_MEM != 5'b0 && rd_MEM == rs1_EX)
-            // 如果MEM阶段写寄存器且目标寄存器与EX阶段的rs1相同
-            forward_rs1_EX = 2'b01;  // 从MEM阶段转发数据
+            forward_rs1_EX = 2'b01;
         else if (RegWrite_WB && rd_WB != 5'b0 && rd_WB == rs1_EX)
-            // 如果WB阶段写寄存器且目标寄存器与EX阶段的rs1相同
-            forward_rs1_EX = 2'b10;  // 从WB阶段转发数据
+            forward_rs1_EX = 2'b10;
         else
-            // 没有数据依赖，不需要转发
-            forward_rs1_EX = 2'b00;  // 不转发，使用寄存器堆中的数据
-            
-        // EX阶段rs2的转发逻辑（与rs1类似）
+            forward_rs1_EX = 2'b00;
+        // EX阶段rs2前递
         if (RegWrite_MEM && rd_MEM != 5'b0 && rd_MEM == rs2_EX)
-            // 如果MEM阶段写寄存器且目标寄存器与EX阶段的rs2相同
-            forward_rs2_EX = 2'b01;  // 从MEM阶段转发数据
+            forward_rs2_EX = 2'b01;
         else if (RegWrite_WB && rd_WB != 5'b0 && rd_WB == rs2_EX)
-            // 如果WB阶段写寄存器且目标寄存器与EX阶段的rs2相同
-            forward_rs2_EX = 2'b10;  // 从WB阶段转发数据
+            forward_rs2_EX = 2'b10;
         else
-            // 没有数据依赖，不需要转发
-            forward_rs2_EX = 2'b00;  // 不转发，使用寄存器堆中的数据
-
-        // 处理Load-Use冒险
-        // 以下处理的是Load与接下来第3条指令的冒险
-        // ID阶段rs1的转发逻辑
-        // 只能从WB阶段转发，因为MEM阶段的数据还没有准备好
+            forward_rs2_EX = 2'b00;
+        // ID阶段rs1前递
         if (RegWrite_WB && rd_WB != 5'b0 && rd_WB == rs1_ID)
-            forward_rs1_ID = 1'b1;  // 从WB阶段转发数据
+            forward_rs1_ID = 1'b1;
         else
-            forward_rs1_ID = 1'b0;  // 不转发，使用寄存器堆中的数据
-            
-        // ID阶段rs2的转发逻辑
+            forward_rs1_ID = 1'b0;
+        // ID阶段rs2前递
         if (RegWrite_WB && rd_WB != 5'b0 && rd_WB == rs2_ID)
-            forward_rs2_ID = 1'b1;  // 从WB阶段转发数据
+            forward_rs2_ID = 1'b1;
         else
-            forward_rs2_ID = 1'b0;  // 不转发，使用寄存器堆中的数据
+            forward_rs2_ID = 1'b0;
     end
 endmodule 

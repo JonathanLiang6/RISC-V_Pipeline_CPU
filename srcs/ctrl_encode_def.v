@@ -1,4 +1,8 @@
-// 控制信号与常量定义文件，包含RISC-V流水线CPU各模块用到的操作码、功能码、控制信号等宏定义
+// ============================================================================
+// 文件名称：ctrl_encode_def.v
+// 文件功能：RISC-V流水线CPU控制信号与常量定义，包含操作码、功能码、控制信号等宏定义
+// ============================================================================
+
 // NPC控制信号
 `define NPC_PLUS4   3'b000 // PC+4
 `define NPC_BRANCH  3'b001 // 分支跳转
@@ -26,7 +30,7 @@
 `define ALU_BLTU    5'b10001 // BLTU
 `define ALU_BGEU    5'b10010 // BGEU
 
-// EXT控制信号 itype, stype, btype, utype, jtype
+// EXT控制信号
 `define EXT_CTRL_ITYPE_SHAMT 6'b100000 // I型移位立即数扩展
 `define EXT_CTRL_ITYPE	6'b010000 // I型立即数扩展
 `define EXT_CTRL_STYPE	6'b001000 // S型立即数扩展
@@ -34,12 +38,12 @@
 `define EXT_CTRL_UTYPE	6'b000010 // U型立即数扩展
 `define EXT_CTRL_JTYPE	6'b000001 // J型立即数扩展
 
-// GPRSel = 通用寄存器选择
-`define GPRSel_RD 2'b00 // RD = 目标寄存器
-`define GPRSel_RT 2'b01 // RT = 源寄存器
-`define GPRSel_31 2'b10 // 31 = 常数31，x31，riscv中未用
+// 通用寄存器选择
+`define GPRSel_RD 2'b00 // 目标寄存器
+`define GPRSel_RT 2'b01 // 源寄存器
+`define GPRSel_31 2'b10 // 常数31，x31，RISC-V中未用
 
-// WDSel = 写数据选择
+// 写数据选择
 `define WDSel_FromALU 2'b00 // 来自ALU
 `define WDSel_FromMEM 2'b01 // 来自内存
 `define WDSel_FromPC 2'b10  // 来自PC

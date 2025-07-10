@@ -1,4 +1,7 @@
-// 五级流水线CPU顶层模块，连接各功能单元，实现RISC-V指令的取指、译码、执行、访存、写回五级流水线
+// ============================================================================
+// 模块名称：PipelineCPU
+// 模块功能：五级流水线CPU顶层模块，连接各功能单元，实现RISC-V指令的取指、译码、执行、访存、写回五级流水线
+// ============================================================================
 `include "ctrl_encode_def.v"
 
 module PipelineCPU(
@@ -19,11 +22,11 @@ module PipelineCPU(
 );
 
     // ----------------------------------------------------------------
-    // Control signals wire preparation begins
-    // IF stage signals
+    // 控制信号线准备开始
+    // IF阶段信号
     wire [31:0] PC_IF;      // 输出PC值
     
-    // ID stage signals
+    // ID阶段信号
     // 长连接
     wire [31:0] instr_ID;   // 输出指令值，表示此阶段正在执行的指令
     wire [31:0] PC_ID;      // ID阶段PC值
@@ -40,7 +43,7 @@ module PipelineCPU(
     wire [1:0] WDSel_ID; // 输出写数据选择信号
     wire [2:0] DMType_ID; // 输出数据类型
     
-    // EX stage signals
+    // EX阶段信号
     // 长连接
     wire [31:0] instr_EX; // 输出指令值
     wire [31:0] PC_EX;  // 输出PC值
@@ -58,7 +61,7 @@ module PipelineCPU(
     wire [31:0] alu_result_EX, alu_B_EX; // 输出ALU结果
     wire Zero_EX, Sign_EX, Overflow_EX, Carry_EX; // 输出标志信号
     
-    // MEM stage signals
+    // MEM阶段信号
     // 长连接
     wire [31:0] instr_MEM; // 输出指令值
     wire [31:0] alu_result_MEM; // 输出ALU结果
@@ -73,7 +76,7 @@ module PipelineCPU(
     wire [1:0] WDSel_MEM; // 输出写数据选择信号
     wire [2:0] DMType_MEM; // 输出数据类型
     
-    // WB stage signals
+    // WB阶段信号
     // 长连接
     wire [31:0] instr_WB; // 输出指令值
     wire [31:0] alu_result_WB; // 输出ALU结果
@@ -86,13 +89,13 @@ module PipelineCPU(
     wire [1:0] WDSel_WB; // 输出写数据选择信号
     
 
-    // Control signals wire preparation ends
+    // 控制信号线准备结束
     // ----------------------------------------------------------------
 
 
 
     // ----------------------------------------------------------------
-    // Instruction decode wire preparation begins
+    // 指令解码信号准备开始
     wire [4:0] rs1_ID, rs2_ID;
     wire [6:0] opcode_ID, funct7_ID;
     wire [2:0] funct3_ID;
@@ -103,7 +106,7 @@ module PipelineCPU(
     assign rs1_ID = instr_ID[19:15];
     assign rs2_ID = instr_ID[24:20];
     
-    // Immediate extraction
+    // 立即数提取
     wire [4:0] iimm_shamt_ID;
     wire [11:0] iimm_ID, simm_ID, bimm_ID;
     wire [19:0] uimm_ID, jimm_ID;
@@ -120,14 +123,14 @@ module PipelineCPU(
     wire [4:0] rd_addr_EX = instr_EX[11:7];
     wire [6:0] opcode_EX = instr_EX[6:0];
     wire [2:0] funct3_EX = instr_EX[14:12];
-    // Instruction Decode wire preparation ends
+    // 指令解码信号准备结束
     // ----------------------------------------------------------------
 
 
 
     // ----------------------------------------------------------------
-    // Hazard detection and forwarding signals preparation begins
-    wire stall_IF_internal; // 暂停IF阶段
+    // 冒险检测和前递信号准备开始
+    wire stall_IF_internal; // IF阶段暂停
     wire flush_ID; // 清空ID阶段
     wire flush_EX; // 清空EX阶段
     wire [1:0] forward_rs1_EX; // EX阶段源寄存器1前递信号
@@ -138,7 +141,7 @@ module PipelineCPU(
     wire [31:0] rs1_data_forwarded_ID, rs2_data_forwarded_ID;
     wire branch_taken_EX;
 
-    // Write back data selection
+    // 写回数据选择
     assign wb_data_WB = (WDSel_WB == `WDSel_FromALU) ? alu_result_WB :
                         (WDSel_WB == `WDSel_FromMEM) ? mem_data_WB :
                         (WDSel_WB == `WDSel_FromPC) ? (PC_WB + 4) : alu_result_WB;
@@ -178,11 +181,11 @@ module PipelineCPU(
                                    (forward_rs2_EX == 2'b10) ? wb_data_WB :       // 从WB阶段前递
                                    rs2_data_EX;                                // 不使用前递
     
-    // ALU B operand selection
+    // ALU B操作数选择
     assign alu_B_EX = ALUSrc_EX ? imm_EX : rs2_data_forwarded_EX;
 
     // ----------------------------------------------------------------
-    // IF Stage Hardware instantiation begins
+    // IF阶段硬件实例化开始
 
 
     PC_NPC pc_npc_unit(
@@ -195,14 +198,14 @@ module PipelineCPU(
         .aluout(alu_result_EX),
         .PC(PC_IF)
     );
-    // IF Stage Hardware instantiation ends
+    // IF阶段硬件实例化结束
     // ----------------------------------------------------------------
 
 
 
     // ----------------------------------------------------------------
-    // IF/ID pipeline register instantiation begins
-    // IF/ID pipeline register - 使用冒险检测信号
+    // IF/ID流水线寄存器实例化开始
+    // IF/ID流水线寄存器 - 使用冒险检测信号
     IF_ID_Reg if_id_reg(
         .clk(clk), 
         .rst(rst), 
@@ -213,13 +216,13 @@ module PipelineCPU(
         .PC_out(PC_ID), 
         .instr_out(instr_ID)
     );
-    // IF/ID pipeline register instantiation ends
+    // IF/ID流水线寄存器实例化结束
     // ----------------------------------------------------------------
     
 
 
     // ----------------------------------------------------------------
-    // HazardDetectionUnit instantiation begins
+    // 冒险检测单元实例化开始
     // 实例化冒险检测单元
     HazardDetectionUnit hazard_detection_unit(
         .rs1_ID(rs1_ID),
@@ -245,13 +248,13 @@ module PipelineCPU(
         .NPCImm_out(npc_imm_sel),
         .base_PC_out(npc_base_pc)
     );
-    // HazardDetectionUnit instantiation ends
+    // 冒险检测单元实例化结束
     // ----------------------------------------------------------------
 
 
 
     // ----------------------------------------------------------------
-    // ID Stage Hardware instantiation begins
+    // ID阶段硬件实例化开始
     ctrl ctrl_unit(
         .Op(opcode_ID), 
         .Funct7(funct7_ID), 
@@ -292,13 +295,13 @@ module PipelineCPU(
     );
     
 
-    // ID Stage Hardware instantiation ends
+    // ID阶段硬件实例化结束
     // ----------------------------------------------------------------
     
 
 
     // ----------------------------------------------------------------
-    // ID/EX pipeline register instantiation begins
+    // ID/EX流水线寄存器实例化开始
     ID_EX_Reg id_ex_reg(
         .clk(clk),
         .rst(rst),
@@ -328,13 +331,13 @@ module PipelineCPU(
         .WDSel_out(WDSel_EX),
         .DMType_out(DMType_EX)
     );
-    // ID/EX pipeline register instantiation ends
+    // ID/EX流水线寄存器实例化结束
     // ----------------------------------------------------------------
     
 
 
     // ----------------------------------------------------------------
-    // EXE Stage Hardware instantiation begins
+    // EXE阶段硬件实例化开始
     // 实例化前递单元
     ForwardingUnit forwarding_unit(
         .rs1_EX(rs1_addr_EX),
@@ -364,13 +367,13 @@ module PipelineCPU(
         .Overflow(Overflow_EX),
         .Carry(Carry_EX)
     );
-    // EXE Stage Hardware instantiation ends
+    // EXE阶段硬件实例化结束
     // ----------------------------------------------------------------
     
 
 
     // ----------------------------------------------------------------
-    // EX/MEM pipeline register instantiation begins
+    // EX/MEM流水线寄存器实例化开始
     EX_MEM_Reg ex_mem_reg(
         .clk(clk), 
         .rst(rst), 
@@ -395,17 +398,17 @@ module PipelineCPU(
         .DMType_out(DMType_MEM), 
         .PC_out(PC_MEM)
     );
-    // EX/MEM pipeline register instantiation ends
+    // EX/MEM流水线寄存器实例化结束
     // ----------------------------------------------------------------
 
 
 
 
     // ----------------------------------------------------------------
-    // MEM stage Hardware instantiation begins
+    // MEM阶段硬件实例化开始
     assign mem_data_MEM = Data_in;
     
-    // MEM/WB pipeline register
+    // MEM/WB流水线寄存器
     MEM_WB_Reg mem_wb_reg(
         .clk(clk), 
         .rst(rst), 
@@ -425,13 +428,13 @@ module PipelineCPU(
         .PC_out(PC_WB)
     );
     
-    // MEM stage Hardware instantiation ends
+    // MEM阶段硬件实例化结束
     // ----------------------------------------------------------------
 
 
 
     // ----------------------------------------------------------------
-    // Output assignments begins
+    // 输出赋值开始
     assign PC_out = PC_IF;
     assign Addr_out = alu_result_MEM;
     assign Data_out = rs2_data_MEM;
@@ -439,6 +442,6 @@ module PipelineCPU(
     assign DMType_out = DMType_MEM;
     assign debug_data = PC_IF;
     assign stall_IF = stall_IF_internal;
-    // Output assignments ends
+    // 输出赋值结束
     // ----------------------------------------------------------------
 endmodule
